@@ -1,0 +1,271 @@
+#CREATE MQM USER:
+groupadd mqm
+useradd -gmqm mqm
+passwd mqm
+
+#JBOSS USER
+groupadd gpp
+useradd -ggpp jboss
+usermod -Gmqm jboss
+passwd jboss
+
+# DEPENDENCIES AS ROOT USER:
+yum install wget
+yum install unzip
+yum install cifs-util
+yum install gcc
+yum install openssl-devel
+yum install parted
+yum install expect
+yum install mc
+yum install telnet
+yum install dos2unix
+yum install sshpass
+yum install mlocate
+yum install vim-common
+yum install nc
+yum install redhat-lsb-core
+yum install redhat-indexhtml
+yum install ksh
+
+update db
+
+wget http://dl.fedoraproject.org/pub/epel/epel-release-latest-7.noarch.rpm
+rpm -ivh epel-release-latest-7.noarch.rpm
+
+#JAVA AS ROOT:
+cd /usr/local
+tar -xzvf jdk-8u261-linux-x64.tar.gz
+
+chown -R root:root jdk1.8.0_261
+
+vi /etc/profile.d/java.sh
+export JAVA_HOME=/usr/local/jdk1.8.0_261
+export PATH=$PATH:$JAVA_HOME/bin
+
+#OPEN JDK AS ROOT
+cd /usr/lib
+yum install java-1.8.0-openjdk-1.8.0.282.b08-1.el7_9.x86_64.rpm
+yum install java-1.8.0-openjdk-headless-1.8.0.282.b08-1.el7_9.x86_64.rpm
+update-alternatives --install /usr/bin/java java /usr/local/jdk1.8.0_261/bin/java 100
+update-alternatives --install /usr/bin/jar jar /usr/local/jdk1.8.0_261/bin/jar 100
+update-alternatives --install /usr/bin/javac javac /usr/local/jdk1.8.0_261/bin/javac 100
+update-alternatives --install /usr/bin/keytool keytool /usr/local/jdk1.8.0_261/bin/keytool 100
+
+alternatives --set java /usr/local/jdk1.8.0_261/bin/java
+alternatives --set javac /usr/local/jdk1.8.0_261/bin/javac
+alternatives --set keytool /usr/local/jdk1.8.0_261/bin/keytool
+
+#KAFKA AS ROOT
+cd /opt
+tar -xzvf confluent-community-5.5.1-2.12.tar.gz
+
+chown -R root:root confluent
+
+#ELASTIC SEARCH AS ROOT
+cd /opt
+tar -xzvf elasticsearch.tar.gz
+
+chown -R root:root elasticsearch
+
+#UPDATE LIMITS.CONF AS  ROOT USER 
+vi /etc/security/limits.conf
+jboss soft nofile 131072
+jboss hard nofile 131072
+jboss soft nproc 16384
+jboss hard nproc 131072
+jboss soft memlock unlimited
+jboss hard memlock unlimited
+mqm soft nofile 131072
+mqm hard nofile 131072
+mqm soft nproc 16384
+mqm hard nproc 131072
+mqm soft memlock unlimited
+mqm hard memlock unlimited
+
+ulimit -n 65536
+
+#NODEJS AS ROOT
+yum install nodejs-14.16.1-1nodesource.el8.x86_64.rpm
+npm install forever-3.0.2.tgz -g
+
+npm -v
+node -v
+
+#NGINX AS ROOT
+yum install nginx-1.18.0-1.el7.ngx.x86_64.rpm
+
+#VERIFY NGINX.SERVICE FILE
+vi /usr/lib/systemd/system/nginx.service
+[Unit]
+Description=The nginx HTTP and reverse proxy server
+After=network-online.target remote-fs.target nss-lookup.target
+Wants=network-online.target
+[Service]
+Type=forking
+PIDFile=/run/nginx.pid
+# Nginx will fail to start if /run/nginx.pid already exists but has the wrong
+# SELinux context. This might happen when running `nginx -t` from the cmdline.
+# https://bugzilla.redhat.com/show_bug.cgi?id=1268621
+ExecStartPre=/usr/bin/rm -f /run/nginx.pid
+ExecStartPre=/usr/sbin/nginx -t
+ExecStart=/usr/sbin/nginx
+ExecReload=/usr/sbin/nginx -s reload
+KillSignal=SIGQUIT
+TimeoutStopSec=5
+KillMode=process
+PrivateTmp=true
+[Install]
+WantedBy=multi-user.target
+
+#STOP SERVICE
+chmod 777 -R /var/log/nginx
+
+chmod 777 -R /var/cache/nginx
+
+# LOGIN AS JBOSS USER
+cd /home/jboss/
+mkdir ext
+
+mv /home/installers/jboss-eap-7.2.0-installer.jar /home/jboss/ext
+
+#RUN JAR FILE
+java -jar jboss-eap-7.2.0-installer.jar -console
+0
+1
+/home/jboss/ext/EAP-7.2.0
+1
+0
+1
+admin
+admin123
+1
+0
+1
+n
+y
+[enter]
+
+#ORACLECLIENT AS ROOT
+mkdir -p /opt/Oracle/oracleclient
+
+tar -xzvf ora12102_oracle_client.tar.gz
+
+#CREATE ORACLECLIENT.SH UNDER /etc/profile.d
+vi /etc/profile.d/oracleclient.sh
+export ORACLE_HOME=/opt/Oracle/oracleclient/ora12102/product/12.1.0.2/client_1
+export PATH=${PATH}:${ORACLE_HOME}/bin
+export LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:${ORACLE_HOME}/lib
+
+#PYTHON
+yum install python python3
+yum install python-pip python3-pip
+yum install python-devel python3-devel
+
+#INSTALL CX-ORACLE
+pip-3 install -r requirements.txt --no-index --find-links cx_Oracle-8.0.0-cp36-cp36mmanylinux1_x86_64.whl
+pip-3 install pip==9.0.3
+pip-3 install packaging
+pip-3 install futures==3.1.1
+
+python3 -V
+
+#INSTALL TPAT AS JBOSS USER
+cd /home/jboss
+mkdir -p gpp/install
+
+tar -xzvf tpat_jboss_v4.6_20220314_b01.tar.gz
+
+cd /home/jboss/gpp/install/tpat_jboss_v4.6_20220314_b01/env
+vi set_tpat.env
+
+#Change env details for set_tpat.env to /home/jboss/gpp/env [Refer to Configure set_tpat.env]
+
+#RUN SETUP.KSH
+cd /home/jboss/gpp/install/tpat_jboss_v4.6_20220314_b01
+./setup.ksh
+
+# INSTALL IBMMQ AS ROOT
+cd /opt
+mkdir -p mqm/installer
+
+tar -xzvf 9.1.0-IBM-MQ-LinuxX64-FP0006.tar.gz
+tar -xzvf IBM_MQ_9.1.0.6_LINUX_X86-64.tar.gz
+
+cd MQServer
+./mqlicense.sh [press 1 to agree for license]
+
+yum install rpm-build
+rpm -ivh MQ*.rpm
+
+chown -R mqm:mqm /opt/mqm
+
+cd /opt/mqm/installer/MQServer/Advanced/RDQM/PreReqs/drbd-9.0
+yum install drbd*.rpm
+
+cd /opt/mqm/installer
+yum install kmod-drbd-9.0.27_3.10.0_1160-1.x86_64.rpm
+
+cd /opt/mqm/installer/MQServer/Advanced/RDQM/PreReqs/pacemaker-1.1.20
+yum install *.rpm
+
+# MQM USER
+mkdir -p /home/mqm/install
+
+tar -xzvf manage_mqm_v4.6_261221_b01.tar.gz
+
+cd /home/mqm/install/manage_mqm_v4.6_261221_b01/install
+./setup.ksh
+
+# ROOT USER
+dracut -f -v
+
+vi /etc/default/grub
+GRUB_TIMEOUT=10
+GRUB_DISTRIBUTOR="$(sed 's, release .*$,,g' /etc/system-release)"
+GRUB_DEFAULT=saved
+GRUB_DISABLE_SUBMENU=true
+GRUB_TERMINAL_OUTPUT="console"
+GRUB_CMDLINE_LINUX="crashkernel=auto console=tty1 console=ttyS0 earlyprintk=ttyS0 
+rootdelay=300 scsi_mod.use_blk_mq=y"
+GRUB_DISABLE_RECOVERY="true"
+GRUB_TIMEOUT_STYLE=countdown
+GRUB_TERMINAL="serial console"
+GRUB_SERIAL_COMMAND="serial --speed=115200 --unit=0 --word=8 --parity=no --stop=1"
+
+grub2-mkconfig -o /boot/grub2/grub.cfg
+
+semanage permissive -a drbd_t
+
+#Update /etc/sysct.conf using root User
+vi /etc/sysctl.conf
+fs.inotify.max_user_watches=524288
+fs.file-max=65536
+vm.max_map_count=262144
+kernel.printk = 4 4 1 7
+
+sysctl -p
+
+cat /proc/sys/vm/max_map_count
+
+#Disable firewalld and SELinux then flush iptables using root User
+sudo systemctl stop firewalld
+
+sudo systemctl disable firewalld
+
+iptables -F
+
+firewall-cmd --state
+
+vi /etc/selinux/config
+SELINUX=disabled
+
+#Create environment file under /etc using root User
+vi /etc/environment
+LANG=en_US.utf-8
+LC_ALL=en_US.utf-8
+
+#Verify if ClientAliveInterval is not commented out under /etc then reload sshd service using root User
+vi /etc/ssh/sshd_config
+ClientAliveInterval 180
+systemctl reload sshd
